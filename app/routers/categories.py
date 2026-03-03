@@ -35,7 +35,7 @@ async def create_category(category: CategoryCreate, db: AsyncSession = Depends(g
         result = await db.scalars(stmt)
         parent = result.first()
         if parent is None:
-            raise HTTPException(status_code=400, detail="Parent category not found")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Parent category not found")
 
     # Создание новой категории
     db_category = CategoryModel(**category.model_dump())
