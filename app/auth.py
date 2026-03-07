@@ -10,12 +10,12 @@ from app.models.users import User as UserModel
 from app.config import SECRET_KEY, ALGORITHM
 from app.db_depends import get_async_db
 
-
 # Создаём контекст для хеширования с использованием bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/token")
+
 
 def hash_password(password: str) -> str:
     """
@@ -70,3 +70,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme),
     if user is None:
         raise credentials_exception
     return user
+
+
+async def get_current_seller(current_user: UserModel = Depends(get_current_user)):
+    """
+    Проверяет, что пользователь имеет роль 'seller'.
+    """
+    if current_user.role != "seller":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only sellers can perform this action")
+    return current_user
+
+
+async def get_current_admin(current_user: UserModel = Depends(get_current_user)):
+    """
+        Проверяет, что пользователь имеет роль 'admin'.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can perform this action")
+    return current_user
