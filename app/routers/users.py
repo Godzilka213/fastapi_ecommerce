@@ -57,7 +57,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
 import jwt
 
 from app.config import SECRET_KEY, ALGORITHM
-from app.schemas import RefreshTokenRequest, AccessTokenRequest
+from app.schemas import RefreshTokenRequest
 
 
 @router.post("/refresh-token")
