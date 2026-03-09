@@ -14,3 +14,4 @@ class User(Base):
     role: Mapped[str] = mapped_column(String, default="buyer")  # "buyer", "seller" or "admin"
 
     products: Mapped[list["Product"]] = relationship("Product", back_populates="seller")
+    reviews: Mapped['Review'] = relationship('Review', back_populates='user')

@@ -132,6 +132,7 @@ async def delete_product(
     """
     Выполняет мягкое удаление товара, если он принадлежит текущему продавцу (только для 'seller').
     """
+    # Проверяем существование и активность продукта
     result = await db.scalars(
         select(ProductModel).where(ProductModel.id == product_id, ProductModel.is_active == True)
     )
