@@ -31,7 +31,7 @@ async def update_product_rating(db: AsyncSession, product_id: int):
     await db.commit()
 
 
-@router.get('/reviews', response_model=list[ReviewSchema])
+@router.get('/', response_model=list[ReviewSchema])
 async def get_reviews(db: AsyncSession = Depends(get_async_db)):
     """
     Возвращает список всех активных отзывов.
@@ -61,7 +61,7 @@ async def get_product_reviews(product_id: int, db: AsyncSession = Depends(get_as
     return db_reviews
 
 
-@router.post('/reviews', response_model=ReviewSchema)
+@router.post('/', response_model=ReviewSchema)
 async def create_review(
         review: ReviewCreate,
         db: AsyncSession = Depends(get_async_db),
@@ -78,7 +78,13 @@ async def create_review(
                                                             ProductModel.is_active == True))
     if not db_product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Product not found')
-    if 1 < review.grade < 5:
+    # Проверяем наличие отзыва на одном товаре от одного пользователя
+    db_almost_review = await db.scalar(select(ReviewModel).where(ReviewModel.user_id == user.id,
+                                                                 ReviewModel.product_id == review.product_id,
+                                                                 ReviewModel.is_active == True))
+    if db_almost_review:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail='Review already exists')
+    if 1 < review.grade > 5:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail='Grade must be between 1 and 5')
 
     db_add_review = ReviewModel(**review.model_dump(), user_id=user.id)
@@ -89,7 +95,7 @@ async def create_review(
     return db_add_review
 
 
-@router.delete('/reviews/{review_id}', response_model=ReviewSchema)
+@router.delete('/{review_id}')
 async def delete_review(
         review_id: int,
         db: AsyncSession = Depends(get_async_db),
@@ -99,18 +105,25 @@ async def delete_review(
     Выполняет мягкое удаление отзыва,
     если он принадлежит текущему покупателю или администратору (только для 'buyer' и 'admin').
     """
-    # Проверяем наличие отзыва у пользователя и его активность
-    db_user_review = await db.scalar(select(UserModel).where(ReviewModel.user_id == user.id,
-                                                             UserModel.is_active == True))
-    if not db_user_review or user.role != 'admin':
+    # Проверяем, что пользователь является продавцом
+    if user.role == 'seller':
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to perform this action")
-    # Проверяем существование и активность отзыва
-    db_review_model = await db.scalar(select(ReviewModel).where(ReviewModel.id == review_id,
-                                                                ReviewModel.user_id == user.id,
-                                                                ReviewModel.is_active == True))
-    if not db_review_model:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Review not found or inactive')
 
+    # Проверяем наличие отзыва у пользователя и его активность
+    # db_user_review = await db.scalar(select(UserModel).where(ReviewModel.user_id == user.id,
+    #                                                          UserModel.is_active == True))
+    # if not db_user_review:
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to perform this action")
+
+    # Проверяем существование и активность отзыва
+    db_review_model = await db.scalar(select(ReviewModel).
+                                      where(ReviewModel.id == review_id,
+                                            ReviewModel.is_active == True))
+    if not db_review_model:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='Review not found, inactive or not your review')
+    if not (user.id == db_review_model.user_id or user.role == 'admin'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not allowed to perform this action")
     db_review_model.is_active = False
     await db.commit()
     await db.refresh(db_review_model)  # Для возврата is_active = False
